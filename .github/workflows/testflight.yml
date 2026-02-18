@@ -83,6 +83,27 @@ jobs:
           mkdir -p ~/private_keys
           echo "$API_KEY_BASE64" | base64 --decode > ~/private_keys/AuthKey_${API_KEY_ID}.p8
 
+      - name: Register app in App Store Connect (if needed)
+        working-directory: apps/ios
+        env:
+          ASC_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
+          IOS_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          BUNDLE_ID: ${{ secrets.OPENCLAW_BUNDLE_ID }}
+        run: |
+          export ASC_KEY_PATH="${HOME}/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          APP_ID="${BUNDLE_ID:-ai.openclaw.ios}"
+          # produce registers the bundle ID in the Developer Portal and creates
+          # the App Store Connect record if they don't already exist.
+          fastlane run produce \
+            app_identifier:"$APP_ID" \
+            app_name:"OpenClaw" \
+            language:"English" \
+            app_version:"1.0" \
+            sku:"openclaw-ios" \
+            skip_itc:false \
+            skip_devcenter:false || true  # non-fatal if app already exists
+
       - name: Build and upload to TestFlight
         working-directory: apps/ios
         env:
