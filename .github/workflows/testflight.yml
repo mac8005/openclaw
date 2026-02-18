@@ -43,8 +43,25 @@ jobs:
 
       - name: Select Xcode version
         run: |
-          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          # Swift packages require tools version 6.2 → needs Xcode 26+
+          if [ -d "/Applications/Xcode_26.0.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.0.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_26.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_26.app/Contents/Developer
+          elif [ -d "/Applications/Xcode.app" ]; then
+            XCODE_VERSION=$(xcodebuild -version | head -1 | awk '{print $2}' | cut -d. -f1)
+            if [ "$XCODE_VERSION" -ge 26 ]; then
+              sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+            else
+              echo "ERROR: Xcode 26+ required (Swift tools 6.2), found Xcode $XCODE_VERSION"
+              exit 1
+            fi
+          else
+            echo "ERROR: Xcode not found"
+            exit 1
+          fi
           xcodebuild -version
+          xcodebuild -runFirstLaunch || true
 
       - name: Install xcodegen and fastlane
         run: brew install xcodegen fastlane
