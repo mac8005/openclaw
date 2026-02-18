@@ -200,7 +200,7 @@ jobs:
             --arg key_id "${API_KEY_ID}" \
             --arg issuer_id "${API_KEY_ISSUER_ID}" \
             --rawfile key "${HOME}/private_keys/AuthKey_${API_KEY_ID}.p8" \
-            '{key_id: $key_id, issuer_id: $issuer_id, key: $key}' > "$API_KEY_JSON"
+            '{key_id: $key_id, issuer_id: $issuer_id, key: $key, in_house: false}' > "$API_KEY_JSON"
 
           APP_ID="${BUNDLE_ID:-ai.openclaw.ios}"
 
