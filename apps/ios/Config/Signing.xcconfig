@@ -8,7 +8,6 @@ OPENCLAW_IOS_SELECTED_TEAM = $(OPENCLAW_IOS_DEFAULT_TEAM)
 
 CODE_SIGN_STYLE = Automatic
 CODE_SIGN_IDENTITY = Apple Development
-CODE_SIGN_IDENTITY[config=Release] = Apple Distribution
 DEVELOPMENT_TEAM = $(OPENCLAW_IOS_SELECTED_TEAM)
 
 // Let Xcode manage provisioning for the selected local team.
