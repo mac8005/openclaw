@@ -63,8 +63,21 @@ jobs:
           xcodebuild -version
           xcodebuild -runFirstLaunch || true
 
-      - name: Install xcodegen
-        run: brew install xcodegen
+      - name: Download iOS and watchOS platforms
+        run: |
+          for platform in iOS watchOS; do
+            for i in 1 2 3; do
+              echo "Attempt $i: Downloading $platform platform..."
+              if xcodebuild -downloadPlatform $platform; then
+                echo "$platform platform downloaded successfully"
+                break
+              fi
+              [ $i -lt 3 ] && sleep 30
+            done
+          done
+
+      - name: Install xcodegen and fastlane
+        run: brew install xcodegen fastlane
 
       - name: Configure signing
         env:
@@ -100,6 +113,26 @@ jobs:
         run: |
           mkdir -p ~/private_keys
           echo "$API_KEY_BASE64" | base64 --decode > ~/private_keys/AuthKey_${API_KEY_ID}.p8
+
+      - name: Register all bundle IDs in App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
+          IOS_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          BUNDLE_ID: ${{ secrets.OPENCLAW_BUNDLE_ID }}
+        run: |
+          APP_ID="${BUNDLE_ID:-ai.openclaw.ios}"
+          export ASC_KEY_PATH="${HOME}/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          for id in "$APP_ID" "${APP_ID}.share" "${APP_ID}.watchkitapp" "${APP_ID}.watchkitapp.extension"; do
+            fastlane run produce \
+              app_identifier:"$id" \
+              app_name:"OpenClaw" \
+              language:"English" \
+              app_version:"1.0" \
+              sku:"openclaw-${id##*.}" \
+              skip_itc:true \
+              skip_devcenter:false || true
+          done
 
       - name: Archive app
         working-directory: apps/ios
