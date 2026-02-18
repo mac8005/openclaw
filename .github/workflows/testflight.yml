@@ -63,8 +63,8 @@ jobs:
           xcodebuild -version
           xcodebuild -runFirstLaunch || true
 
-      - name: Install xcodegen and fastlane
-        run: brew install xcodegen fastlane
+      - name: Install xcodegen
+        run: brew install xcodegen
 
       - name: Configure signing
         env:
@@ -77,6 +77,9 @@ jobs:
           OPENCLAW_DEVELOPMENT_TEAM = ${IOS_DEVELOPMENT_TEAM}
           OPENCLAW_IOS_SELECTED_TEAM = ${IOS_DEVELOPMENT_TEAM}
           OPENCLAW_CODE_SIGN_STYLE = Automatic
+          // Clear hardcoded profile names so automatic signing picks the right ones
+          OPENCLAW_APP_PROFILE =
+          OPENCLAW_SHARE_PROFILE =
           EOF
           # Override bundle ID if provided (defaults to ai.openclaw.ios from project.yml)
           if [ -n "${BUNDLE_ID}" ]; then
@@ -98,36 +101,47 @@ jobs:
           mkdir -p ~/private_keys
           echo "$API_KEY_BASE64" | base64 --decode > ~/private_keys/AuthKey_${API_KEY_ID}.p8
 
-      - name: Register app in App Store Connect (if needed)
+      - name: Archive app
         working-directory: apps/ios
         env:
-          ASC_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          API_KEY_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
           IOS_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
-          BUNDLE_ID: ${{ secrets.OPENCLAW_BUNDLE_ID }}
         run: |
-          export ASC_KEY_PATH="${HOME}/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-          APP_ID="${BUNDLE_ID:-ai.openclaw.ios}"
-          # produce registers the bundle ID in the Developer Portal and creates
-          # the App Store Connect record if they don't already exist.
-          fastlane run produce \
-            app_identifier:"$APP_ID" \
-            app_name:"OpenClaw" \
-            language:"English" \
-            app_version:"1.0" \
-            sku:"openclaw-ios" \
-            skip_itc:false \
-            skip_devcenter:false || true  # non-fatal if app already exists
+          xcodebuild archive \
+            -project $PROJECT \
+            -scheme $SCHEME \
+            -configuration Release \
+            -archivePath build/OpenClaw.xcarchive \
+            -destination "generic/platform=iOS" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
+            -authenticationKeyID $API_KEY_ID \
+            -authenticationKeyIssuerID $API_KEY_ISSUER_ID \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM=$IOS_DEVELOPMENT_TEAM
 
-      - name: Build and upload to TestFlight
+      - name: Export and upload to TestFlight
         working-directory: apps/ios
         env:
-          ASC_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          API_KEY_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
           IOS_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          export ASC_KEY_PATH="${HOME}/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-          fastlane beta
+          /usr/libexec/PlistBuddy -c "Clear dict" ExportOptions.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :method string 'app-store-connect'" ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :destination string 'upload'" ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string 'automatic'" ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :teamID string '${IOS_DEVELOPMENT_TEAM}'" ExportOptions.plist
+
+          xcodebuild -exportArchive \
+            -archivePath build/OpenClaw.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
+            -authenticationKeyID $API_KEY_ID \
+            -authenticationKeyIssuerID $API_KEY_ISSUER_ID
 
       - name: Clean up API key
         if: always()
