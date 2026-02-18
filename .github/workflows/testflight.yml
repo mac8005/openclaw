@@ -209,7 +209,7 @@ jobs:
           # Force regeneration keeps CI deterministic on ephemeral runners
           # without accumulating certs/profiles between runs.
           fastlane run cert \
-            type:"distribution" \
+            development:false \
             force:true \
             generate_apple_certs:true \
             team_id:"${IOS_DEVELOPMENT_TEAM}" \
