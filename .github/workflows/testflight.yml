@@ -154,20 +154,36 @@ jobs:
           API_KEY_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
           IOS_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcodebuild archive \
-            -project $PROJECT \
-            -scheme $SCHEME \
-            -configuration Release \
-            -archivePath build/OpenClaw.xcarchive \
-            -destination "generic/platform=iOS" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
-            -authenticationKeyID $API_KEY_ID \
-            -authenticationKeyIssuerID $API_KEY_ISSUER_ID \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM=$IOS_DEVELOPMENT_TEAM \
-            PROVISIONING_PROFILE= \
-            PROVISIONING_PROFILE_SPECIFIER=
+          USERDATA_PROFILES="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          MOBILEDEVICE_PROFILES="$HOME/Library/MobileDevice/Provisioning Profiles"
+          for attempt in 1 2 3; do
+            echo "Archive attempt ${attempt}/3"
+            if xcodebuild archive \
+              -project $PROJECT \
+              -scheme $SCHEME \
+              -configuration Release \
+              -archivePath build/OpenClaw.xcarchive \
+              -destination "generic/platform=iOS" \
+              -allowProvisioningUpdates \
+              -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
+              -authenticationKeyID $API_KEY_ID \
+              -authenticationKeyIssuerID $API_KEY_ISSUER_ID \
+              CODE_SIGN_STYLE=Automatic \
+              DEVELOPMENT_TEAM=$IOS_DEVELOPMENT_TEAM \
+              PROVISIONING_PROFILE= \
+              PROVISIONING_PROFILE_SPECIFIER=
+            then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            echo "Archive attempt ${attempt} failed; resync provisioning profile directories and retry..."
+            mkdir -p "$USERDATA_PROFILES" "$MOBILEDEVICE_PROFILES"
+            rsync -a "$MOBILEDEVICE_PROFILES/" "$USERDATA_PROFILES/" || true
+            rsync -a "$USERDATA_PROFILES/" "$MOBILEDEVICE_PROFILES/" || true
+            sleep 30
+          done
 
       - name: Export and upload to TestFlight
         working-directory: apps/ios
