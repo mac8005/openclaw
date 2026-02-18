@@ -72,8 +72,8 @@ extension WatchConnectivityReceiver: WCSessionDelegate {
         }
         Task { @MainActor in
             self.store.consume(message: incoming, transport: "sendMessage")
-            replyHandler(["ok": true])
         }
+        replyHandler(["ok": true])
     }
 
     func session(_: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
