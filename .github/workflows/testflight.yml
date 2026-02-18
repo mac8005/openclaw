@@ -195,19 +195,30 @@ jobs:
           IOS_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           /usr/libexec/PlistBuddy -c "Clear dict" ExportOptions.plist 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :method string 'app-store-connect'" ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :method string 'app-store'" ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :destination string 'upload'" ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :signingStyle string 'automatic'" ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :teamID string '${IOS_DEVELOPMENT_TEAM}'" ExportOptions.plist
 
-          xcodebuild -exportArchive \
-            -archivePath build/OpenClaw.xcarchive \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath build/export \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
-            -authenticationKeyID $API_KEY_ID \
-            -authenticationKeyIssuerID $API_KEY_ISSUER_ID
+          for attempt in 1 2 3; do
+            echo "Export attempt ${attempt}/3"
+            if xcodebuild -exportArchive \
+              -archivePath build/OpenClaw.xcarchive \
+              -exportOptionsPlist ExportOptions.plist \
+              -exportPath build/export \
+              -allowProvisioningUpdates \
+              -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
+              -authenticationKeyID $API_KEY_ID \
+              -authenticationKeyIssuerID $API_KEY_ISSUER_ID
+            then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            echo "Export attempt ${attempt} failed; retrying in 30s..."
+            sleep 30
+          done
 
       - name: Clean up API key
         if: always()
