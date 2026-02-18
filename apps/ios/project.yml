@@ -159,8 +159,8 @@ targets:
       path: WatchApp/Info.plist
       properties:
         CFBundleDisplayName: OpenClaw
-        CFBundleShortVersionString: "2026.2.16"
-        CFBundleVersion: "20260216"
+        CFBundleShortVersionString: "2026.2.18"
+        CFBundleVersion: "20260218"
         WKCompanionAppBundleIdentifier: ai.openclaw.ios
         WKWatchKitApp: true
 
@@ -183,8 +183,8 @@ targets:
       path: WatchExtension/Info.plist
       properties:
         CFBundleDisplayName: OpenClaw
-        CFBundleShortVersionString: "2026.2.16"
-        CFBundleVersion: "20260216"
+        CFBundleShortVersionString: "2026.2.18"
+        CFBundleVersion: "20260218"
         NSExtension:
           NSExtensionAttributes:
             WKAppBundleIdentifier: ai.openclaw.ios.watchkitapp
