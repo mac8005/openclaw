@@ -196,7 +196,7 @@ jobs:
         run: |
           /usr/libexec/PlistBuddy -c "Clear dict" ExportOptions.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :method string 'app-store'" ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :destination string 'upload'" ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :destination string 'export'" ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :signingStyle string 'automatic'" ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :teamID string '${IOS_DEVELOPMENT_TEAM}'" ExportOptions.plist
 
@@ -217,6 +217,25 @@ jobs:
               exit 1
             fi
             echo "Export attempt ${attempt} failed; retrying in 30s..."
+            sleep 30
+          done
+
+          IPA_PATH=$(find build/export -maxdepth 1 -name "*.ipa" -print -quit)
+          if [ -z "$IPA_PATH" ]; then
+            echo "No IPA found in build/export after exportArchive."
+            exit 1
+          fi
+          echo "IPA ready: $IPA_PATH"
+
+          for attempt in 1 2 3; do
+            echo "Upload attempt ${attempt}/3"
+            if xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$API_KEY_ID" --apiIssuer "$API_KEY_ISSUER_ID"; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            echo "Upload attempt ${attempt} failed; retrying in 30s..."
             sleep 30
           done
 
