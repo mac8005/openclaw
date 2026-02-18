@@ -114,6 +114,19 @@ jobs:
           mkdir -p ~/private_keys
           echo "$API_KEY_BASE64" | base64 --decode > ~/private_keys/AuthKey_${API_KEY_ID}.p8
 
+      - name: Normalize provisioning profile directories
+        run: |
+          USERDATA_PROFILES="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          MOBILEDEVICE_PROFILES="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$USERDATA_PROFILES" "$MOBILEDEVICE_PROFILES"
+          # Xcode/CI tooling can read/write either path depending on version.
+          # Mirror existing profiles, then make MobileDevice point at UserData.
+          rsync -a "$MOBILEDEVICE_PROFILES/" "$USERDATA_PROFILES/" || true
+          if [ ! -L "$MOBILEDEVICE_PROFILES" ]; then
+            rm -rf "$MOBILEDEVICE_PROFILES"
+            ln -s "$USERDATA_PROFILES" "$MOBILEDEVICE_PROFILES"
+          fi
+
       - name: Register all bundle IDs in App Store Connect
         env:
           ASC_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
@@ -152,7 +165,10 @@ jobs:
             -authenticationKeyID $API_KEY_ID \
             -authenticationKeyIssuerID $API_KEY_ISSUER_ID \
             CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM=$IOS_DEVELOPMENT_TEAM
+            DEVELOPMENT_TEAM=$IOS_DEVELOPMENT_TEAM \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE= \
+            PROVISIONING_PROFILE_SPECIFIER=
 
       - name: Export and upload to TestFlight
         working-directory: apps/ios
