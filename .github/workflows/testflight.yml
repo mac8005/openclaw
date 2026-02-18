@@ -77,7 +77,7 @@ jobs:
           done
 
       - name: Install xcodegen and fastlane
-        run: brew install xcodegen fastlane
+        run: brew install xcodegen fastlane swiftlint swiftformat
 
       - name: Configure signing
         env:
