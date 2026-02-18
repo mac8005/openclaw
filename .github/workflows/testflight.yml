@@ -204,6 +204,50 @@ jobs:
 
           APP_ID="${BUNDLE_ID:-ai.openclaw.ios}"
 
+          b64url() {
+            openssl base64 -e -A | tr '+/' '-_' | tr -d '='
+          }
+
+          asc_token() {
+            local header payload sig now
+            header=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "${API_KEY_ID}" | b64url)
+            now=$(date +%s)
+            payload=$(printf '{"iss":"%s","exp":%d,"aud":"appstoreconnect-v1"}' "${API_KEY_ISSUER_ID}" "$((now + 1200))" | b64url)
+            sig=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "${HOME}/private_keys/AuthKey_${API_KEY_ID}.p8" | b64url)
+            printf '%s.%s.%s' "$header" "$payload" "$sig"
+          }
+
+          ASC_TOKEN="$(asc_token)"
+
+          ensure_bundle_id() {
+            local ident="$1"
+            local name="$2"
+            local existing
+            existing=$(
+              curl -fsSLG "https://api.appstoreconnect.apple.com/v1/bundleIds" \
+                -H "Authorization: Bearer ${ASC_TOKEN}" \
+                --data-urlencode "filter[identifier]=${ident}" \
+                --data-urlencode "limit=1" | jq -r '.data[0].id // empty'
+            )
+            if [ -n "$existing" ]; then
+              echo "Bundle ID exists: ${ident} (${existing})"
+              return
+            fi
+            payload=$(jq -n --arg ident "$ident" --arg name "$name" \
+              '{data:{type:"bundleIds",attributes:{identifier:$ident,name:$name,platform:"IOS"}}}')
+            curl -fsSL "https://api.appstoreconnect.apple.com/v1/bundleIds" \
+              -H "Authorization: Bearer ${ASC_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -X POST \
+              -d "$payload" >/dev/null
+            echo "Created bundle ID: ${ident}"
+          }
+
+          ensure_bundle_id "$APP_ID" "OpenClaw"
+          ensure_bundle_id "${APP_ID}.share" "OpenClaw Share"
+          ensure_bundle_id "${APP_ID}.watchkitapp" "OpenClaw Watch App"
+          ensure_bundle_id "${APP_ID}.watchkitapp.extension" "OpenClaw Watch Extension"
+
           # Force regeneration keeps CI deterministic on ephemeral runners
           # without accumulating certs/profiles between runs.
           fastlane run cert \
