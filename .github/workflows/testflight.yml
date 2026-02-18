@@ -187,6 +187,43 @@ jobs:
             sleep 30
           done
 
+      - name: Prepare distribution signing assets
+        working-directory: apps/ios
+        env:
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          API_KEY_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
+          IOS_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          BUNDLE_ID: ${{ secrets.OPENCLAW_BUNDLE_ID }}
+        run: |
+          API_KEY_JSON="$HOME/private_keys/asc_api_key.json"
+          cat > "$API_KEY_JSON" <<EOF
+          {
+            "key_id": "${API_KEY_ID}",
+            "issuer_id": "${API_KEY_ISSUER_ID}",
+            "key_filepath": "${HOME}/private_keys/AuthKey_${API_KEY_ID}.p8"
+          }
+          EOF
+
+          APP_ID="${BUNDLE_ID:-ai.openclaw.ios}"
+
+          # Force regeneration keeps CI deterministic on ephemeral runners
+          # without accumulating certs/profiles between runs.
+          fastlane run cert \
+            type:"distribution" \
+            force:true \
+            generate_apple_certs:true \
+            team_id:"${IOS_DEVELOPMENT_TEAM}" \
+            api_key_path:"${API_KEY_JSON}"
+
+          for id in "$APP_ID" "${APP_ID}.share" "${APP_ID}.watchkitapp" "${APP_ID}.watchkitapp.extension"; do
+            fastlane run sigh \
+              app_identifier:"$id" \
+              force:true \
+              skip_install:false \
+              team_id:"${IOS_DEVELOPMENT_TEAM}" \
+              api_key_path:"${API_KEY_JSON}"
+          done
+
       - name: Export and upload to TestFlight
         working-directory: apps/ios
         env:
