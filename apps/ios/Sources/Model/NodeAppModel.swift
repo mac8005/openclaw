@@ -39,6 +39,7 @@ private final class NotificationInvokeLatch<T: Sendable>: @unchecked Sendable {
 }
 @MainActor
 @Observable
+// swiftlint:disable type_body_length
 final class NodeAppModel {
     private let deepLinkLogger = Logger(subsystem: "ai.openclaw.ios", category: "DeepLink")
     enum CameraHUDKind {
@@ -2111,6 +2112,7 @@ extension NodeAppModel {
     /// Back-compat hook retained for older gateway-connect flows.
     func onNodeGatewayConnected() async {}
 }
+// swiftlint:enable type_body_length
 
 #if DEBUG
 extension NodeAppModel {
