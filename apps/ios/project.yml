@@ -154,14 +154,14 @@ targets:
       Release: Config/Signing.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ai.openclaw.ios.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: "$(OPENCLAW_WATCH_APP_BUNDLE_ID)"
     info:
       path: WatchApp/Info.plist
       properties:
         CFBundleDisplayName: OpenClaw
         CFBundleShortVersionString: "2026.2.18"
         CFBundleVersion: "20260218"
-        WKCompanionAppBundleIdentifier: ai.openclaw.ios
+        WKCompanionAppBundleIdentifier: "$(OPENCLAW_WATCH_COMPANION_BUNDLE_ID)"
         WKWatchKitApp: true
 
   OpenClawWatchExtension:
@@ -178,7 +178,7 @@ targets:
       Release: Config/Signing.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ai.openclaw.ios.watchkitapp.extension
+        PRODUCT_BUNDLE_IDENTIFIER: "$(OPENCLAW_WATCH_EXTENSION_BUNDLE_ID)"
     info:
       path: WatchExtension/Info.plist
       properties:
@@ -187,7 +187,7 @@ targets:
         CFBundleVersion: "20260218"
         NSExtension:
           NSExtensionAttributes:
-            WKAppBundleIdentifier: ai.openclaw.ios.watchkitapp
+            WKAppBundleIdentifier: "$(OPENCLAW_WATCH_APP_BUNDLE_ID)"
           NSExtensionPointIdentifier: com.apple.watchkit
 
   OpenClawTests:
