@@ -137,17 +137,34 @@ jobs:
         run: |
           KEY_PATH="${HOME}/private_keys/AuthKey_${API_KEY_ID}.p8"
 
-          b64url() {
-            openssl base64 -e -A | tr '+/' '-_' | tr -d '='
-          }
-
           make_token() {
             local payload_json="$1"
-            local header payload sig
-            header=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "${API_KEY_ID}" | b64url)
-            payload=$(printf '%s' "$payload_json" | b64url)
-            sig=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "$KEY_PATH" | b64url)
-            printf '%s.%s.%s' "$header" "$payload" "$sig"
+            PAYLOAD_JSON="$payload_json" KEY_PATH="$KEY_PATH" ruby <<'RUBY'
+          require "base64"
+          require "json"
+          require "openssl"
+
+          key_id = ENV.fetch("API_KEY_ID")
+          key_path = ENV.fetch("KEY_PATH")
+          payload = JSON.parse(ENV.fetch("PAYLOAD_JSON"))
+          header = { "alg" => "ES256", "kid" => key_id, "typ" => "JWT" }
+
+          encode = lambda do |obj|
+            data = obj.is_a?(String) ? obj : JSON.generate(obj)
+            Base64.urlsafe_encode64(data, padding: false)
+          end
+
+          segments = [encode.call(header), encode.call(payload)]
+          signing_input = segments.join(".")
+          key = OpenSSL::PKey.read(File.read(key_path))
+          der_signature = key.dsa_sign_asn1(OpenSSL::Digest::SHA256.digest(signing_input))
+          asn1 = OpenSSL::ASN1.decode(der_signature)
+          r = asn1.value[0].value.to_s(16).rjust(64, "0")
+          s = asn1.value[1].value.to_s(16).rjust(64, "0")
+          raw_signature = [r + s].pack("H*")
+          segments << Base64.urlsafe_encode64(raw_signature, padding: false)
+          puts segments.join(".")
+          RUBY
           }
 
           check_token() {
@@ -264,21 +281,40 @@ jobs:
 
           APP_ID="${BUNDLE_ID:-ai.openclaw.ios}"
 
-          b64url() {
-            openssl base64 -e -A | tr '+/' '-_' | tr -d '='
-          }
-
           asc_token() {
-            local header payload sig now
-            header=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "${API_KEY_ID}" | b64url)
+            local payload_json now
             now=$(date +%s)
             if [ "${ASC_AUTH_MODE}" = "individual" ] || [ -z "${API_KEY_ISSUER_ID}" ]; then
-              payload=$(printf '{"sub":"user","exp":%d,"aud":"appstoreconnect-v1"}' "$((now + 1200))" | b64url)
+              payload_json=$(printf '{"sub":"user","exp":%d,"aud":"appstoreconnect-v1"}' "$((now + 1200))")
             else
-              payload=$(printf '{"iss":"%s","exp":%d,"aud":"appstoreconnect-v1"}' "${API_KEY_ISSUER_ID}" "$((now + 1200))" | b64url)
+              payload_json=$(printf '{"iss":"%s","exp":%d,"aud":"appstoreconnect-v1"}' "${API_KEY_ISSUER_ID}" "$((now + 1200))")
             fi
-            sig=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "${HOME}/private_keys/AuthKey_${API_KEY_ID}.p8" | b64url)
-            printf '%s.%s.%s' "$header" "$payload" "$sig"
+            PAYLOAD_JSON="$payload_json" ruby <<'RUBY'
+          require "base64"
+          require "json"
+          require "openssl"
+
+          key_id = ENV.fetch("API_KEY_ID")
+          key_path = File.join(ENV.fetch("HOME"), "private_keys", "AuthKey_#{key_id}.p8")
+          payload = JSON.parse(ENV.fetch("PAYLOAD_JSON"))
+          header = { "alg" => "ES256", "kid" => key_id, "typ" => "JWT" }
+
+          encode = lambda do |obj|
+            data = obj.is_a?(String) ? obj : JSON.generate(obj)
+            Base64.urlsafe_encode64(data, padding: false)
+          end
+
+          segments = [encode.call(header), encode.call(payload)]
+          signing_input = segments.join(".")
+          key = OpenSSL::PKey.read(File.read(key_path))
+          der_signature = key.dsa_sign_asn1(OpenSSL::Digest::SHA256.digest(signing_input))
+          asn1 = OpenSSL::ASN1.decode(der_signature)
+          r = asn1.value[0].value.to_s(16).rjust(64, "0")
+          s = asn1.value[1].value.to_s(16).rjust(64, "0")
+          raw_signature = [r + s].pack("H*")
+          segments << Base64.urlsafe_encode64(raw_signature, padding: false)
+          puts segments.join(".")
+          RUBY
           }
 
           ASC_TOKEN="$(asc_token)"
