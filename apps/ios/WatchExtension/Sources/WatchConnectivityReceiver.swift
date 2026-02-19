@@ -70,6 +70,7 @@ extension WatchConnectivityReceiver: WCSessionDelegate {
             replyHandler(["ok": false])
             return
         }
+        replyHandler(["ok": true])
         Task { @MainActor in
             self.store.consume(message: incoming, transport: "sendMessage")
         }
