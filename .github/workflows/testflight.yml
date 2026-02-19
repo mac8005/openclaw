@@ -130,35 +130,86 @@ jobs:
             ln -s "$USERDATA_PROFILES" "$MOBILEDEVICE_PROFILES"
           fi
 
-      - name: Register all bundle IDs in App Store Connect
+      - name: Resolve App Store Connect auth mode
         env:
-          ASC_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
-          IOS_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
-          BUNDLE_ID: ${{ secrets.OPENCLAW_BUNDLE_ID }}
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          API_KEY_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
         run: |
-          APP_ID="${BUNDLE_ID:-ai.openclaw.ios}"
-          export ASC_KEY_PATH="${HOME}/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-          for id in "$APP_ID" "${APP_ID}.share" "${APP_ID}.watchkitapp" "${APP_ID}.watchkitapp.extension"; do
-            fastlane run produce \
-              app_identifier:"$id" \
-              app_name:"OpenClaw" \
-              language:"English" \
-              app_version:"1.0" \
-              sku:"openclaw-${id##*.}" \
-              skip_itc:true \
-              skip_devcenter:false || true
-          done
+          KEY_PATH="${HOME}/private_keys/AuthKey_${API_KEY_ID}.p8"
+
+          b64url() {
+            openssl base64 -e -A | tr '+/' '-_' | tr -d '='
+          }
+
+          make_token() {
+            local payload_json="$1"
+            local header payload sig
+            header=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "${API_KEY_ID}" | b64url)
+            payload=$(printf '%s' "$payload_json" | b64url)
+            sig=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "$KEY_PATH" | b64url)
+            printf '%s.%s.%s' "$header" "$payload" "$sig"
+          }
+
+          check_token() {
+            local token="$1"
+            local out="$2"
+            curl -sS -o "$out" -w "%{http_code}" \
+              -H "Authorization: Bearer ${token}" \
+              "https://api.appstoreconnect.apple.com/v1/apps?limit=1"
+          }
+
+          now=$(date +%s)
+          auth_mode=""
+          effective_issuer=""
+          auth_body="$(mktemp)"
+
+          if [ -n "${API_KEY_ISSUER_ID}" ]; then
+            team_payload=$(printf '{"iss":"%s","exp":%d,"aud":"appstoreconnect-v1"}' "${API_KEY_ISSUER_ID}" "$((now + 1200))")
+            team_token="$(make_token "$team_payload")"
+            team_status="$(check_token "$team_token" "$auth_body")"
+            if [ "$team_status" = "200" ]; then
+              auth_mode="team"
+              effective_issuer="${API_KEY_ISSUER_ID}"
+            else
+              echo "Team-key auth probe returned HTTP ${team_status}."
+            fi
+          fi
+
+          if [ -z "$auth_mode" ]; then
+            individual_payload=$(printf '{"sub":"user","exp":%d,"aud":"appstoreconnect-v1"}' "$((now + 1200))")
+            individual_token="$(make_token "$individual_payload")"
+            individual_status="$(check_token "$individual_token" "$auth_body")"
+            if [ "$individual_status" = "200" ]; then
+              auth_mode="individual"
+              effective_issuer=""
+            else
+              echo "::error::App Store Connect auth failed for both team and individual token modes."
+              echo "Team-key issuer secret may be wrong, or this API key is missing required access."
+              cat "$auth_body"
+              exit 1
+            fi
+          fi
+
+          echo "ASC_AUTH_MODE=${auth_mode}" >> "$GITHUB_ENV"
+          echo "ASC_EFFECTIVE_ISSUER_ID=${effective_issuer}" >> "$GITHUB_ENV"
+          echo "Using App Store Connect auth mode: ${auth_mode}"
 
       - name: Archive app
         working-directory: apps/ios
         env:
           API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
-          API_KEY_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
+          API_KEY_ISSUER_ID: ${{ env.ASC_EFFECTIVE_ISSUER_ID }}
           IOS_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           USERDATA_PROFILES="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
           MOBILEDEVICE_PROFILES="$HOME/Library/MobileDevice/Provisioning Profiles"
+          AUTH_ARGS=(
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${API_KEY_ID}.p8"
+            -authenticationKeyID "$API_KEY_ID"
+          )
+          if [ -n "${API_KEY_ISSUER_ID}" ]; then
+            AUTH_ARGS+=(-authenticationKeyIssuerID "$API_KEY_ISSUER_ID")
+          fi
           for attempt in 1 2 3; do
             echo "Archive attempt ${attempt}/3"
             if xcodebuild archive \
@@ -168,9 +219,7 @@ jobs:
               -archivePath build/OpenClaw.xcarchive \
               -destination "generic/platform=iOS" \
               -allowProvisioningUpdates \
-              -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
-              -authenticationKeyID $API_KEY_ID \
-              -authenticationKeyIssuerID $API_KEY_ISSUER_ID \
+              "${AUTH_ARGS[@]}" \
               CODE_SIGN_STYLE=Automatic \
               DEVELOPMENT_TEAM=$IOS_DEVELOPMENT_TEAM \
               CODE_SIGNING_ALLOWED=NO \
@@ -194,16 +243,24 @@ jobs:
         working-directory: apps/ios
         env:
           API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
-          API_KEY_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
+          API_KEY_ISSUER_ID: ${{ env.ASC_EFFECTIVE_ISSUER_ID }}
           IOS_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
           BUNDLE_ID: ${{ secrets.OPENCLAW_BUNDLE_ID }}
+          ASC_AUTH_MODE: ${{ env.ASC_AUTH_MODE }}
         run: |
           API_KEY_JSON="$HOME/private_keys/asc_api_key.json"
-          jq -n \
-            --arg key_id "${API_KEY_ID}" \
-            --arg issuer_id "${API_KEY_ISSUER_ID}" \
-            --rawfile key "${HOME}/private_keys/AuthKey_${API_KEY_ID}.p8" \
-            '{key_id: $key_id, issuer_id: $issuer_id, key: $key, in_house: false}' > "$API_KEY_JSON"
+          if [ -n "${API_KEY_ISSUER_ID}" ]; then
+            jq -n \
+              --arg key_id "${API_KEY_ID}" \
+              --arg issuer_id "${API_KEY_ISSUER_ID}" \
+              --rawfile key "${HOME}/private_keys/AuthKey_${API_KEY_ID}.p8" \
+              '{key_id: $key_id, issuer_id: $issuer_id, key: $key, in_house: false}' > "$API_KEY_JSON"
+          else
+            jq -n \
+              --arg key_id "${API_KEY_ID}" \
+              --rawfile key "${HOME}/private_keys/AuthKey_${API_KEY_ID}.p8" \
+              '{key_id: $key_id, key: $key, in_house: false}' > "$API_KEY_JSON"
+          fi
 
           APP_ID="${BUNDLE_ID:-ai.openclaw.ios}"
 
@@ -215,7 +272,11 @@ jobs:
             local header payload sig now
             header=$(printf '{"alg":"ES256","kid":"%s","typ":"JWT"}' "${API_KEY_ID}" | b64url)
             now=$(date +%s)
-            payload=$(printf '{"iss":"%s","exp":%d,"aud":"appstoreconnect-v1"}' "${API_KEY_ISSUER_ID}" "$((now + 1200))" | b64url)
+            if [ "${ASC_AUTH_MODE}" = "individual" ] || [ -z "${API_KEY_ISSUER_ID}" ]; then
+              payload=$(printf '{"sub":"user","exp":%d,"aud":"appstoreconnect-v1"}' "$((now + 1200))" | b64url)
+            else
+              payload=$(printf '{"iss":"%s","exp":%d,"aud":"appstoreconnect-v1"}' "${API_KEY_ISSUER_ID}" "$((now + 1200))" | b64url)
+            fi
             sig=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "${HOME}/private_keys/AuthKey_${API_KEY_ID}.p8" | b64url)
             printf '%s.%s.%s' "$header" "$payload" "$sig"
           }
@@ -225,24 +286,49 @@ jobs:
           ensure_bundle_id() {
             local ident="$1"
             local name="$2"
-            local existing
-            existing=$(
-              curl -fsSLG "https://api.appstoreconnect.apple.com/v1/bundleIds" \
+            local response_file status existing payload
+            response_file="$(mktemp)"
+            status=$(
+              curl -sS -o "$response_file" -w "%{http_code}" -G "https://api.appstoreconnect.apple.com/v1/bundleIds" \
                 -H "Authorization: Bearer ${ASC_TOKEN}" \
                 --data-urlencode "filter[identifier]=${ident}" \
-                --data-urlencode "limit=1" | jq -r '.data[0].id // empty'
+                --data-urlencode "limit=1"
             )
+            if [ "$status" = "401" ] || [ "$status" = "403" ]; then
+              echo "::error::App Store Connect API key is not authorized for bundle ID management."
+              echo "Grant this key access to Certificates, IDs & Profiles, and verify team/issuer settings."
+              cat "$response_file"
+              exit 1
+            fi
+            if [ "$status" != "200" ]; then
+              echo "::error::Failed to query bundle ID ${ident} (HTTP ${status})."
+              cat "$response_file"
+              exit 1
+            fi
+            existing="$(jq -r '.data[0].id // empty' "$response_file")"
             if [ -n "$existing" ]; then
               echo "Bundle ID exists: ${ident} (${existing})"
               return
             fi
             payload=$(jq -n --arg ident "$ident" --arg name "$name" \
               '{data:{type:"bundleIds",attributes:{identifier:$ident,name:$name,platform:"IOS"}}}')
-            curl -fsSL "https://api.appstoreconnect.apple.com/v1/bundleIds" \
-              -H "Authorization: Bearer ${ASC_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -X POST \
-              -d "$payload" >/dev/null
+            status=$(
+              curl -sS -o "$response_file" -w "%{http_code}" "https://api.appstoreconnect.apple.com/v1/bundleIds" \
+                -H "Authorization: Bearer ${ASC_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -X POST \
+                -d "$payload"
+            )
+            if [ "$status" = "401" ] || [ "$status" = "403" ]; then
+              echo "::error::App Store Connect API key is not authorized to create bundle ID ${ident}."
+              cat "$response_file"
+              exit 1
+            fi
+            if [ "$status" != "201" ] && [ "$status" != "409" ]; then
+              echo "::error::Failed to create bundle ID ${ident} (HTTP ${status})."
+              cat "$response_file"
+              exit 1
+            fi
             echo "Created bundle ID: ${ident}"
           }
 
@@ -273,7 +359,7 @@ jobs:
         working-directory: apps/ios
         env:
           API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
-          API_KEY_ISSUER_ID: ${{ secrets.APPSTORE_API_KEY_ISSUER_ID }}
+          API_KEY_ISSUER_ID: ${{ env.ASC_EFFECTIVE_ISSUER_ID }}
           IOS_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           /usr/libexec/PlistBuddy -c "Clear dict" ExportOptions.plist 2>/dev/null || true
@@ -282,6 +368,14 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :signingStyle string 'automatic'" ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :teamID string '${IOS_DEVELOPMENT_TEAM}'" ExportOptions.plist
 
+          AUTH_ARGS=(
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${API_KEY_ID}.p8"
+            -authenticationKeyID "$API_KEY_ID"
+          )
+          if [ -n "${API_KEY_ISSUER_ID}" ]; then
+            AUTH_ARGS+=(-authenticationKeyIssuerID "$API_KEY_ISSUER_ID")
+          fi
+
           for attempt in 1 2 3; do
             echo "Export attempt ${attempt}/3"
             if xcodebuild -exportArchive \
@@ -289,9 +383,7 @@ jobs:
               -exportOptionsPlist ExportOptions.plist \
               -exportPath build/export \
               -allowProvisioningUpdates \
-              -authenticationKeyPath ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
-              -authenticationKeyID $API_KEY_ID \
-              -authenticationKeyIssuerID $API_KEY_ISSUER_ID
+              "${AUTH_ARGS[@]}"
             then
               break
             fi
@@ -309,9 +401,14 @@ jobs:
           fi
           echo "IPA ready: $IPA_PATH"
 
+          UPLOAD_ARGS=(--upload-app --type ios --file "$IPA_PATH" --apiKey "$API_KEY_ID")
+          if [ -n "${API_KEY_ISSUER_ID}" ]; then
+            UPLOAD_ARGS+=(--apiIssuer "$API_KEY_ISSUER_ID")
+          fi
+
           for attempt in 1 2 3; do
             echo "Upload attempt ${attempt}/3"
-            if xcrun altool --upload-app --type ios --file "$IPA_PATH" --apiKey "$API_KEY_ID" --apiIssuer "$API_KEY_ISSUER_ID"; then
+            if xcrun altool "${UPLOAD_ARGS[@]}"; then
               break
             fi
             if [ "$attempt" -eq 3 ]; then
