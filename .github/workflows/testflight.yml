@@ -238,11 +238,7 @@ jobs:
               -allowProvisioningUpdates \
               "${AUTH_ARGS[@]}" \
               CODE_SIGN_STYLE=Automatic \
-              DEVELOPMENT_TEAM=$IOS_DEVELOPMENT_TEAM \
-              CODE_SIGNING_ALLOWED=NO \
-              CODE_SIGNING_REQUIRED=NO \
-              PROVISIONING_PROFILE= \
-              PROVISIONING_PROFILE_SPECIFIER=
+              DEVELOPMENT_TEAM=$IOS_DEVELOPMENT_TEAM
             then
               break
             fi
@@ -430,7 +426,12 @@ jobs:
 
           for attempt in 1 2 3; do
             echo "Upload attempt ${attempt}/3"
-            if xcrun altool "${UPLOAD_ARGS[@]}"; then
+            upload_log="$(mktemp)"
+            set +e
+            xcrun altool "${UPLOAD_ARGS[@]}" 2>&1 | tee "$upload_log"
+            altool_status=${PIPESTATUS[0]}
+            set -e
+            if [ "$altool_status" -eq 0 ] && ! rg -q "UPLOAD FAILED|Validation failed \\(409\\)|Failed to upload package" "$upload_log"; then
               break
             fi
             if [ "$attempt" -eq 3 ]; then
