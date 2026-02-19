@@ -1,6 +1,9 @@
 name: Build and Deploy to TestFlight
 
 on:
+  push:
+    branches:
+      - claude/fetch-and-testflight-build-wKVcn
   # Allow manual trigger
   workflow_dispatch:
     inputs:
