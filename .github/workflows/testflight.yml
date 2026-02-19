@@ -431,7 +431,7 @@ jobs:
             xcrun altool "${UPLOAD_ARGS[@]}" 2>&1 | tee "$upload_log"
             altool_status=${PIPESTATUS[0]}
             set -e
-            if [ "$altool_status" -eq 0 ] && ! rg -q "UPLOAD FAILED|Validation failed \\(409\\)|Failed to upload package" "$upload_log"; then
+            if [ "$altool_status" -eq 0 ] && ! grep -Eq "UPLOAD FAILED|Validation failed \\(409\\)|Failed to upload package" "$upload_log"; then
               break
             fi
             if [ "$attempt" -eq 3 ]; then
