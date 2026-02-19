@@ -373,23 +373,9 @@ jobs:
           ensure_bundle_id "${APP_ID}.watchkitapp" "OpenClaw Watch App"
           ensure_bundle_id "${APP_ID}.watchkitapp.extension" "OpenClaw Watch Extension"
 
-          # Force regeneration keeps CI deterministic on ephemeral runners
-          # without accumulating certs/profiles between runs.
-          fastlane run cert \
-            development:false \
-            force:true \
-            generate_apple_certs:true \
-            team_id:"${IOS_DEVELOPMENT_TEAM}" \
-            api_key_path:"${API_KEY_JSON}"
-
-          for id in "$APP_ID" "${APP_ID}.share" "${APP_ID}.watchkitapp" "${APP_ID}.watchkitapp.extension"; do
-            fastlane run sigh \
-              app_identifier:"$id" \
-              force:true \
-              skip_install:false \
-              team_id:"${IOS_DEVELOPMENT_TEAM}" \
-              api_key_path:"${API_KEY_JSON}"
-          done
+          # Do not force cert/profile generation in CI: Apple enforces
+          # a hard cap on active distribution certificates per team.
+          # Export step uses automatic signing with provisioning updates.
 
       - name: Export and upload to TestFlight
         working-directory: apps/ios
