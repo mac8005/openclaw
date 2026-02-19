@@ -35,9 +35,6 @@ targets:
     sources:
       - path: Sources
     dependencies:
-      - target: OpenClawShareExtension
-        embed: true
-      - target: OpenClawWatchApp
       - package: OpenClawKit
       - package: OpenClawKit
         product: OpenClawChatUI
