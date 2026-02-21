@@ -19,7 +19,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>2026.2.21</string>
 	<key>CFBundleVersion</key>
-	<string>20260220</string>
+	<string>20260221</string>
 	<key>WKCompanionAppBundleIdentifier</key>
 	<string>$(OPENCLAW_APP_BUNDLE_ID)</string>
 	<key>WKWatchKitApp</key>
