@@ -1,6 +1,9 @@
 name: Build and Deploy to TestFlight
 
 on:
+  push:
+    branches:
+      - main
   # Allow manual trigger
   workflow_dispatch:
     inputs:
