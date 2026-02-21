@@ -20,6 +20,8 @@
 	<string>2026.2.21</string>
 	<key>CFBundleVersion</key>
 	<string>20260221</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>WKCompanionAppBundleIdentifier</key>
 	<string>$(OPENCLAW_APP_BUNDLE_ID)</string>
 	<key>WKWatchKitApp</key>
