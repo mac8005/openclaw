@@ -1,6 +1,10 @@
 name: Build and Deploy to TestFlight
 
 on:
+  push:
+    branches:
+      - main
+      - claude/pull-main-testflight-build-XFEMI
   # Allow manual trigger
   workflow_dispatch:
     inputs:
