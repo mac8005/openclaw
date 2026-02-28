@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - claude/pull-main-testflight-build-XFEMI
+      - claude/sync-upstream-pr-X8ESW
   # Allow manual trigger
   workflow_dispatch:
     inputs:
