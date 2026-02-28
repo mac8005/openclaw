@@ -35,9 +35,6 @@ targets:
     sources:
       - path: Sources
     dependencies:
-      - target: OpenClawShareExtension
-        embed: true
-      - target: OpenClawWatchApp
       - package: OpenClawKit
       - package: OpenClawKit
         product: OpenClawChatUI
@@ -108,6 +105,8 @@ targets:
         NSBonjourServices:
           - _openclaw-gw._tcp
         NSCameraUsageDescription: OpenClaw can capture photos or short video clips when requested via the gateway.
+        NSPhotoLibraryUsageDescription: OpenClaw needs photo library access when you choose photos or videos to share with the gateway.
+        NSMotionUsageDescription: OpenClaw uses motion data to support in-app voice features.
         NSLocationWhenInUseUsageDescription: OpenClaw uses your location when you allow location sharing.
         NSLocationAlwaysAndWhenInUseUsageDescription: OpenClaw can share your location in the background when you enable Always.
         NSMicrophoneUsageDescription: OpenClaw needs microphone access for voice wake.

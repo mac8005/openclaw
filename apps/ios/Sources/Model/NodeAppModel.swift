@@ -2732,6 +2732,7 @@ extension NodeAppModel {
         await self.handleWatchQuickReply(event)
     }
 }
+// swiftlint:enable type_body_length
 
 #if DEBUG
 extension NodeAppModel {
