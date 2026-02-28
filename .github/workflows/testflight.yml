@@ -305,9 +305,9 @@ jobs:
           # Apple limits development certs (typically 5); revoke oldest if at limit
           if [ "$cert_count" -ge 2 ]; then
             # Sort by expiration date ascending and pick the oldest
-            oldest_id=$(jq -r '[.data | sort_by(.attributes.expirationDate)] | first | .id' "$certs_json")
-            oldest_name=$(jq -r '[.data | sort_by(.attributes.expirationDate)] | first | .attributes.name // "unnamed"' "$certs_json")
-            oldest_type=$(jq -r '[.data | sort_by(.attributes.expirationDate)] | first | .attributes.certificateType // "unknown"' "$certs_json")
+            oldest_id=$(jq -r '.data | sort_by(.attributes.expirationDate) | first | .id' "$certs_json")
+            oldest_name=$(jq -r '.data | sort_by(.attributes.expirationDate) | first | .attributes.name // "unnamed"' "$certs_json")
+            oldest_type=$(jq -r '.data | sort_by(.attributes.expirationDate) | first | .attributes.certificateType // "unknown"' "$certs_json")
             echo "Revoking oldest certificate: ${oldest_name} (${oldest_id}, type: ${oldest_type})"
             revoke_status=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE \
               -H "Authorization: Bearer ${TOKEN}" \
