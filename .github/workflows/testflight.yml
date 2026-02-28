@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   build-and-deploy:
-    runs-on: macos-15
+    runs-on: macos-26
 
     env:
       SCHEME: OpenClaw
