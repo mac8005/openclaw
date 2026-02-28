@@ -216,6 +216,86 @@ jobs:
           echo "ASC_EFFECTIVE_ISSUER_ID=${effective_issuer}" >> "$GITHUB_ENV"
           echo "Using App Store Connect auth mode: ${auth_mode}"
 
+      - name: Ensure certificate capacity
+        env:
+          API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          API_KEY_ISSUER_ID: ${{ env.ASC_EFFECTIVE_ISSUER_ID }}
+          ASC_AUTH_MODE: ${{ env.ASC_AUTH_MODE }}
+        run: |
+          KEY_PATH="${HOME}/private_keys/AuthKey_${API_KEY_ID}.p8"
+
+          make_token() {
+            local payload_json="$1"
+            local now
+            now=$(date +%s)
+            if [ "${ASC_AUTH_MODE}" = "individual" ] || [ -z "${API_KEY_ISSUER_ID}" ]; then
+              payload_json=$(printf '{"sub":"user","exp":%d,"aud":"appstoreconnect-v1"}' "$((now + 1200))")
+            else
+              payload_json=$(printf '{"iss":"%s","exp":%d,"aud":"appstoreconnect-v1"}' "${API_KEY_ISSUER_ID}" "$((now + 1200))")
+            fi
+            PAYLOAD_JSON="$payload_json" KEY_PATH="$KEY_PATH" ruby <<'RUBY'
+          require "base64"
+          require "json"
+          require "openssl"
+
+          key_id = ENV.fetch("API_KEY_ID")
+          key_path = ENV.fetch("KEY_PATH")
+          payload = JSON.parse(ENV.fetch("PAYLOAD_JSON"))
+          header = { "alg" => "ES256", "kid" => key_id, "typ" => "JWT" }
+
+          encode = lambda do |obj|
+            data = obj.is_a?(String) ? obj : JSON.generate(obj)
+            Base64.urlsafe_encode64(data, padding: false)
+          end
+
+          segments = [encode.call(header), encode.call(payload)]
+          signing_input = segments.join(".")
+          key = OpenSSL::PKey.read(File.read(key_path))
+          der_signature = key.dsa_sign_asn1(OpenSSL::Digest::SHA256.digest(signing_input))
+          asn1 = OpenSSL::ASN1.decode(der_signature)
+          r = asn1.value[0].value.to_s(16).rjust(64, "0")
+          s = asn1.value[1].value.to_s(16).rjust(64, "0")
+          raw_signature = [r + s].pack("H*")
+          segments << Base64.urlsafe_encode64(raw_signature, padding: false)
+          puts segments.join(".")
+          RUBY
+          }
+
+          TOKEN="$(make_token)"
+
+          # Query iOS development certificates
+          certs_json="$(mktemp)"
+          status=$(curl -sS -o "$certs_json" -w "%{http_code}" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            "https://api.appstoreconnect.apple.com/v1/certificates?filter%5BcertificateType%5D=IOS_DEVELOPMENT&limit=200")
+
+          if [ "$status" != "200" ]; then
+            echo "Warning: could not list certificates (HTTP ${status}), continuing anyway..."
+            cat "$certs_json"
+            exit 0
+          fi
+
+          cert_count=$(jq '.data | length' "$certs_json")
+          echo "Found ${cert_count} iOS development certificate(s)"
+
+          # Apple allows max 5 iOS development certs; revoke oldest if at limit
+          if [ "$cert_count" -ge 5 ]; then
+            # Sort by expiration date ascending and pick the oldest
+            oldest_id=$(jq -r '[.data | sort_by(.attributes.expirationDate)] | first | .id' "$certs_json")
+            oldest_name=$(jq -r '[.data | sort_by(.attributes.expirationDate)] | first | .attributes.name' "$certs_json")
+            echo "Revoking oldest certificate: ${oldest_name} (${oldest_id})"
+            revoke_status=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE \
+              -H "Authorization: Bearer ${TOKEN}" \
+              "https://api.appstoreconnect.apple.com/v1/certificates/${oldest_id}")
+            if [ "$revoke_status" = "204" ] || [ "$revoke_status" = "200" ]; then
+              echo "Successfully revoked certificate ${oldest_id}"
+            else
+              echo "Warning: failed to revoke certificate (HTTP ${revoke_status}), continuing anyway..."
+            fi
+          else
+            echo "Certificate count (${cert_count}) is below limit, no revocation needed"
+          fi
+
       - name: Archive app
         working-directory: apps/ios
         env:
