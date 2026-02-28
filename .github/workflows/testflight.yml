@@ -302,23 +302,27 @@ jobs:
             fi
           fi
 
-          # Apple limits development certs (typically 5); revoke oldest if at limit
-          if [ "$cert_count" -ge 2 ]; then
-            # Sort by expiration date ascending and pick the oldest
-            oldest_id=$(jq -r '.data | sort_by(.attributes.expirationDate) | first | .id' "$certs_json")
-            oldest_name=$(jq -r '.data | sort_by(.attributes.expirationDate) | first | .attributes.name // "unnamed"' "$certs_json")
-            oldest_type=$(jq -r '.data | sort_by(.attributes.expirationDate) | first | .attributes.certificateType // "unknown"' "$certs_json")
-            echo "Revoking oldest certificate: ${oldest_name} (${oldest_id}, type: ${oldest_type})"
-            revoke_status=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE \
-              -H "Authorization: Bearer ${TOKEN}" \
-              "https://api.appstoreconnect.apple.com/v1/certificates/${oldest_id}")
-            if [ "$revoke_status" = "204" ] || [ "$revoke_status" = "200" ]; then
-              echo "Successfully revoked certificate ${oldest_id}"
-            else
-              echo "Warning: failed to revoke certificate (HTTP ${revoke_status}), continuing anyway..."
-            fi
+          # Keep only the newest certificate; revoke all others to make room
+          KEEP=1
+          if [ "$cert_count" -gt "$KEEP" ]; then
+            revoke_count=$((cert_count - KEEP))
+            echo "Revoking ${revoke_count} oldest certificate(s) (keeping newest ${KEEP})..."
+            # Sort ascending by expiration, take all but the last KEEP
+            jq -r ".data | sort_by(.attributes.expirationDate) | .[:-${KEEP}][] | \"\(.id)\t\(.attributes.name // \"unnamed\")\t\(.attributes.certificateType // \"unknown\")\"" "$certs_json" | \
+            while IFS=$'\t' read -r cert_id cert_name cert_type; do
+              echo "  Revoking: ${cert_name} (${cert_id}, type: ${cert_type})"
+              revoke_status=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE \
+                -H "Authorization: Bearer ${TOKEN}" \
+                "https://api.appstoreconnect.apple.com/v1/certificates/${cert_id}")
+              if [ "$revoke_status" = "204" ] || [ "$revoke_status" = "200" ]; then
+                echo "    Revoked successfully"
+              else
+                echo "    Warning: failed to revoke (HTTP ${revoke_status})"
+              fi
+            done
+            echo "Certificate cleanup complete"
           else
-            echo "Certificate count (${cert_count}) is below threshold, no revocation needed"
+            echo "Certificate count (${cert_count}) is at or below ${KEEP}, no revocation needed"
           fi
 
       - name: Archive app
