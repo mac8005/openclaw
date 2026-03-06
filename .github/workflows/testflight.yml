@@ -97,11 +97,15 @@ jobs:
           // Clear hardcoded profile names so automatic signing picks the right ones
           OPENCLAW_APP_PROFILE =
           OPENCLAW_SHARE_PROFILE =
+          OPENCLAW_ACTIVITY_WIDGET_PROFILE =
+          OPENCLAW_WATCH_APP_PROFILE =
+          OPENCLAW_WATCH_EXTENSION_PROFILE =
           EOF
           # Override bundle ID if provided (defaults to ai.openclaw.ios from project.yml)
           if [ -n "${BUNDLE_ID}" ]; then
             echo "OPENCLAW_APP_BUNDLE_ID = ${BUNDLE_ID}" >> "$CONFIG"
             echo "OPENCLAW_SHARE_BUNDLE_ID = ${BUNDLE_ID}.share" >> "$CONFIG"
+            echo "OPENCLAW_ACTIVITY_WIDGET_BUNDLE_ID = ${BUNDLE_ID}.activity-widget" >> "$CONFIG"
             echo "OPENCLAW_WATCH_COMPANION_BUNDLE_ID = ${BUNDLE_ID}" >> "$CONFIG"
             echo "OPENCLAW_WATCH_APP_BUNDLE_ID = ${BUNDLE_ID}.watchkitapp" >> "$CONFIG"
             echo "OPENCLAW_WATCH_EXTENSION_BUNDLE_ID = ${BUNDLE_ID}.watchkitapp.extension" >> "$CONFIG"
@@ -480,6 +484,7 @@ jobs:
 
           ensure_bundle_id "$APP_ID" "OpenClaw"
           ensure_bundle_id "${APP_ID}.share" "OpenClaw Share"
+          ensure_bundle_id "${APP_ID}.activity-widget" "OpenClaw Activity Widget"
           ensure_bundle_id "${APP_ID}.watchkitapp" "OpenClaw Watch App"
           ensure_bundle_id "${APP_ID}.watchkitapp.extension" "OpenClaw Watch Extension"
 
