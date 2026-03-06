@@ -412,7 +412,9 @@ enum GatewayDiagnostics {
     private static let keepLogBytes: Int64 = 256 * 1024
     private static let logSizeCheckEveryWrites = 50
     private static let logWritesSinceCheck = OSAllocatedUnfairLock(initialState: 0)
-    private static let isoFormatter: ISO8601DateFormatter = {
+    // nonisolated(unsafe) because ISO8601DateFormatter is not Sendable but this
+    // instance is effectively immutable after init and only used for formatting.
+    nonisolated(unsafe) private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
