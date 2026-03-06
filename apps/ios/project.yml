@@ -222,7 +222,6 @@ targets:
       path: WatchApp/Info.plist
       properties:
         CFBundleDisplayName: OpenClaw
-        CFBundleIconName: AppIcon
         CFBundleShortVersionString: "2026.3.2"
         CFBundleVersion: "20260301"
         WKCompanionAppBundleIdentifier: "$(OPENCLAW_APP_BUNDLE_ID)"
