@@ -126,6 +126,7 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        ITSAppUsesNonExemptEncryption: false
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -160,6 +161,7 @@ targets:
         CFBundleDisplayName: OpenClaw Share
         CFBundleShortVersionString: "2026.3.2"
         CFBundleVersion: "20260301"
+        ITSAppUsesNonExemptEncryption: false
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).ShareViewController"
@@ -197,6 +199,7 @@ targets:
         CFBundleDisplayName: OpenClaw Activity
         CFBundleShortVersionString: "2026.3.2"
         CFBundleVersion: "20260301"
+        ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
@@ -224,6 +227,7 @@ targets:
         CFBundleDisplayName: OpenClaw
         CFBundleShortVersionString: "2026.3.2"
         CFBundleVersion: "20260301"
+        ITSAppUsesNonExemptEncryption: false
         WKCompanionAppBundleIdentifier: "$(OPENCLAW_APP_BUNDLE_ID)"
         WKWatchKitApp: true
 
@@ -249,6 +253,7 @@ targets:
         CFBundleDisplayName: OpenClaw
         CFBundleShortVersionString: "2026.3.2"
         CFBundleVersion: "20260301"
+        ITSAppUsesNonExemptEncryption: false
         NSExtension:
           NSExtensionAttributes:
             WKAppBundleIdentifier: "$(OPENCLAW_WATCH_APP_BUNDLE_ID)"
