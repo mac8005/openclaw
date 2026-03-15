@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - claude/pull-main-testflight-build-XFEMI
+      - claude/testflight-build-D8Qyt
   # Allow manual trigger
   workflow_dispatch:
     inputs:
