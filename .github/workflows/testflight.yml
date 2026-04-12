@@ -45,6 +45,12 @@ jobs:
       - name: Install pnpm dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare iOS build version
+        run: |
+          BUILD_NUMBER="${GITHUB_RUN_ID}${GITHUB_RUN_ATTEMPT}"
+          bash scripts/ios-write-version-xcconfig.sh --build-number "$BUILD_NUMBER"
+          cat apps/ios/build/Version.xcconfig
+
       - name: Select Xcode version
         run: |
           # Swift packages require tools version 6.2 → needs Xcode 26+
